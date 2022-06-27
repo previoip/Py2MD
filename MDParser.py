@@ -73,21 +73,21 @@ class MDParser:
 
     @staticmethod
     def codeblock(string:str, syntax:str, override=False) -> str:
-        if syntax not in code_syntaxes and not override:
+        if syntax not in MDParser.code_syntaxes and not override:
             syntax = ''
         return f'``` {syntax}\n{string}\n```'
 
     @staticmethod
     def diagrams(string:str, syntax:str) -> str:
-        syntax = syntax if syntax in codediagram_syntaxes else ''
+        syntax = syntax if syntax in MDParser.codediagram_syntaxes else ''
         return md_codeblock(string, syntax, override=True)
 
     @staticmethod
     def styiling(string:str, style:str) -> str:
-        if style not in styiling_formats:
+        if style not in MDParser.styiling_formats:
             return string
         else:
-            style = styiling_formats[style]
+            style = MDParser.styiling_formats[style]
             if type(style) == list:
                 return f'{style[0]}{string}{style[1]}'
             else:
@@ -117,7 +117,7 @@ class MDParser:
         return f'[^{ref}]'
 
     @staticmethod
-    def lists(lists, level:int=1, num=False, offset=0) -> str:
+    def bulletlist(lists, level:int=1, num=False, offset=0) -> str:
         assert type(level) == int, f'{level=} not an integer'
         assert level > 0, f'{level=}: heading level cannot be less than 0'
         level -= 1
@@ -125,7 +125,7 @@ class MDParser:
         for n, item in enumerate(lists):
             n += offset 
             if type(item) == list or type(item) == tuple:
-                buffer.append(md_lists(item, level+2, num))
+                buffer.append(MDParser.bulletlist(item, level+2, num))
             else:
                 if num:
                     string = '   '*level + f'{n+1}. {item}'
@@ -154,7 +154,7 @@ class MDParser:
             return buffer
 
         lists = p(lists)
-        return md_lists(lists, level=level, num=False)
+        return MDParser.bulletlist(lists, level=level, num=False)
 
     @staticmethod
     def table_content(lists) -> str:
@@ -191,4 +191,5 @@ class MDParser:
 
 if __name__ == '__main__':
     # todo: argparse, helper
+    parser = MDParser()
     pass

@@ -10,15 +10,32 @@
     # [ ] Task lists
     # [?] Mentioning people and teams
     # [ ] Paragraphs
-    # [ ]Footnotes
+    # [ ] Footnotes
     # [ ] Comments
     # [ ] Ignoring Markdown formatting
     # [ ] diagrams
     # [ ] table
 
-md_code_syntaxes = ['']
-md_codediagram_syntaxes = ['mermaid', 'geoJSON', 'topoJSON', 'ASCII STL']
-md_styiling_formats = {
+# https://github.com/jincheng9/markdown_supported_languages#for-markdown-texts-we-need-to-specify-the-languages-for-corresponding-syntax-highlighting
+md_const_code_syntaxes = ['Cucumber', 'abap', 'ada', 'ahk', 'apacheconf', 'applescript', 
+    'as', 'as3', 'asy', 'bash', 'bat', 'befunge', 'blitzmax', 'boo', 'brainfuck', 'c', 
+    'cfm', 'cheetah', 'cl', 'clojure', 'cmake', 'coffeescript', 'console', 'control', 
+    'cpp', 'csharp', 'css', 'cython', 'd', 'delphi', 'diff', 'dpatch', 'duel', 'dylan', 
+    'erb', 'erl', 'erlang', 'evoque', 'factor', 'felix', 'fortran', 'gas', 'genshi', 
+    'glsl', 'gnuplot', 'go', 'groff', 'haml', 'haskell', 'html', 'hx', 'hybris', 'ini', 
+    'io', 'ioke', 'irc', 'jade', 'java', 'js', 'jsp', 'lhs', 'llvm', 'logtalk', 'lua', 
+    'make', 'mako', 'maql', 'mason', 'markdown', 'modelica', 'modula2', 'moocode', 'mupad', 
+    'mxml', 'myghty', 'nasm', 'newspeak', 'objdump', 'objectivec', 'objectivej', 'ocaml', 
+    'ooc', 'perl', 'php', 'postscript', 'pot', 'pov', 'prolog', 'properties', 'protobuf', 
+    'py3tb', 'pytb', 'python', 'r', 'rb', 'rconsole', 'rebol', 'redcode', 'rhtml', 'rst', 
+    'sass', 'scala', 'scaml', 'scheme', 'scss', 'smalltalk', 'smarty', 'sourceslist', 'splus', 
+    'sql', 'sqlite3', 'squidconf', 'ssp', 'tcl', 'tcsh', 'tex', 'text', 'v', 'vala', 'vbnet', 
+    'velocity', 'vim', 'xml', 'xquery', 'xslt', 'yaml'
+    ]
+
+md_const_codediagram_syntaxes = ['mermaid', 'geoJSON', 'topoJSON', 'ASCII STL']
+
+md_const_styiling_formats = {
     'i': '*',
     'b': '**',
     'ib': '***',
@@ -30,44 +47,44 @@ md_styiling_formats = {
     # 'sup': '^',
 }
 
-def mdescape(string):
-    return f'\*{string}\*'
+def md_newline(num=2) -> str:
+    return '\n'*(num + 1)
 
-def mdheading(string:str, level:int) -> str:
+def md_heading(string:str, level:int) -> str:
     assert type(level) == int, f'{level=} not an integer'
     assert level > 0 or level < 6, f'{level=}: heading level cannot be less than 0 or more than equal to 6'
     return '#'*level + f' {string}'
 
-def mdparagraph(string:str) -> str:
+def md_paragraph(string:str) -> str:
     string = string.replace('\n', ' ')
     string = string.split(' ')
     return ' '.join(i for i in string if i)
 
-def mdquote(string:str, level:int=1) -> str:
+def md_quote(string:str, level:int=1) -> str:
     assert type(level) == int, f'{level=} not an integer'
     assert level > 0, f'{level=}: level cannot be less than 0'
-    return '>'*level + f' {mdparagraph(string)}'
+    return '>'*level + f' {md_paragraph(string)}'
 
-def mdcodeblock(string:str, syntax:str) -> str:
-    md_code_syntaxes += md_codediagram_syntaxes
-    syntax = syntax if syntax in md_code_syntaxes else ''
-    return f'```{syntax}\n{string}\n```'
+def md_codeblock(string:str, syntax:str, override=False) -> str:
+    if syntax not in md_const_code_syntaxes and not override:
+        syntax = ''
+    return f'``` {syntax}\n{string}\n```'
 
-def mddiagrams(string:str, syntax:str) -> str:
-    syntax = syntax if syntax in md_codediagram_syntaxes else ''
-    return mdcodeblock(string, syntax)
+def md_diagrams(string:str, syntax:str) -> str:
+    syntax = syntax if syntax in md_const_codediagram_syntaxes else ''
+    return md_codeblock(string, syntax, override=True)
 
-def mdstyiling(string:str, style:str) -> str:
-    if style not in md_styiling_formats:
+def md_styiling(string:str, style:str) -> str:
+    if style not in md_const_styiling_formats:
         return string
     else:
-        style = md_styiling_formats[style]
+        style = md_const_styiling_formats[style]
         if type(style) == list:
             return f'{style[0]}{string}{style[1]}'
         else:
             return f'{style}{string}{style}'
 
-def mdlinks(url:str, alttext:str='', embed=False):
+def md_links(url:str, alttext:str='', embed=False) -> str:
     if alttext and embed:
         return f'![{alttext}]({url})'
     elif alttext:
@@ -75,18 +92,18 @@ def mdlinks(url:str, alttext:str='', embed=False):
     else:
         return url
 
-def mdlinkuser(string:str):
+def md_linkuser(string:str) -> str:
     return f'@{string}'
 
-def mdcomment(string:str):
+def md_comment(string:str) -> str:
     return f'<!-- {string} -->'
 
-def mdfootnote(ref:str, desc:str=''):
+def md_footnote(ref:str, desc:str='') -> str:
     if desc:
         return f'[^{ref}]: {desc}'
     return f'[^{ref}]'
 
-def mdlists(lists, level:int=1, num=False, offset=0):
+def md_lists(lists, level:int=1, num=False, offset=0) -> str:
     assert type(level) == int, f'{level=} not an integer'
     assert level > 0, f'{level=}: heading level cannot be less than 0'
     level -= 1
@@ -94,7 +111,7 @@ def mdlists(lists, level:int=1, num=False, offset=0):
     for n, item in enumerate(lists):
         n += offset 
         if type(item) == list or type(item) == tuple:
-            buffer.append(mdlists(item, level+2, num))
+            buffer.append(md_lists(item, level+2, num))
         else:
             if num:
                 string = '   '*level + f'{n+1}. {item}'
@@ -103,7 +120,7 @@ def mdlists(lists, level:int=1, num=False, offset=0):
             buffer.append(string)
     return '\n'.join(buffer)
 
-def mdtasks(lists, level:int=1):
+def md_tasks(lists, level:int=1) -> str:
     assert type(level) == int, f'{level=} not an integer'
     assert level > 0, f'{level=}: heading level cannot be less than 0'
 
@@ -122,12 +139,12 @@ def mdtasks(lists, level:int=1):
         return buffer
 
     lists = p(lists)
-    return mdlists(lists, level=level, num=False)
+    return md_lists(lists, level=level, num=False)
 
-def mdtable_content(lists):
+def md_table_content(lists) -> str:
     return '| ' + ' | '.join([str(l) for l in lists]) + ' |'
 
-def mdtable_header(lists, aligns=None):
+def md_table_header(lists, aligns=None) -> str:
     if type(aligns) == list or type(aligns) == tuple:
         if len(aligns) < len(lists):
             aligns += [None]*(len(lists) - len(aligns))
@@ -150,27 +167,11 @@ def mdtable_header(lists, aligns=None):
             aligns[n] = '-' * l
 
 
-    heads = mdtable_content(lists)
-    aligns = mdtable_content(aligns)
+    heads = md_table_content(lists)
+    aligns = md_table_content(aligns)
     return f'{heads}\n{aligns}'
 
 
 if __name__ == '__main__':
-
-    l1 = ['list 1','list 2','list 3', ['nested 1', 'nested 2', 'nested 3', ['nestednested 1', 'nestednested 2', 'nestednested 3']],'list 4','list 5','list 6',]
-    l2 = [
-        'task 1',
-        (False, 'task 2'),
-        (True, 'task 3'),
-            [
-            (True, 'task 1'),
-            (False, 'task 2'),
-            (True, 'task 3'),
-        ]
-    ]
-
-    l3 = ['Hhhead1', 'id', 'Heeeeead3', 'Headddd4']
-    a3 = ['l', 'right', 'Center']
-    print(mdtable_header(l3))
-    # print(mdtasks(l1))
-    # print(mdtasks(l2))
+    # todo: argparse, helper
+    pass

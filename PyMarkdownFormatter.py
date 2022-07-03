@@ -1,6 +1,8 @@
-class MDParser:
+import re
 
-    ## todo
+class MDFormatter:
+
+    ## TODO
         # [x] Headings
         # [x] Styling text
         # [x] Quoting text
@@ -8,8 +10,8 @@ class MDParser:
         # [x] Links
         # [?] Section links
         # [as embed in url] Images
-        # [x] Lists
-        # [x] Task lists
+        # [x] List
+        # [x] Task list
         # [?] Mentioning people and teams
         # [x] Paragraphs
         # [x] Footnotes
@@ -51,19 +53,21 @@ class MDParser:
 
     @staticmethod
     def newline(num=2) -> str:
-        return '\n'*(num + 1)
+        return '\n'*(num)
 
     @staticmethod
-    def heading(string:str, level:int) -> str:
-        assert type(level) == int, f'{level=} not an integer'
-        assert level > 0 or level < 6, f'{level=}: heading level cannot be less than 0 or more than equal to 6'
+    def heading(string:str, level:int=1) -> str:
+        # assert type(level) == int, f'{level=} not an integer'
+        # assert level > 0 or level < 6, f'{level=}: heading level cannot be less than 0 or more than equal to 6'
+        if not level:
+            level = 1
         return '#'*level + f' {string}'
 
     @staticmethod
     def paragraph(string:str) -> str:
         string = string.replace('\n', ' ')
         string = string.split(' ')
-        return ' '.join(i for i in string if i)
+        return ' '.join(i for i in string if i) + ' '
 
     @staticmethod
     def quote(string:str, level:int=1) -> str:
@@ -72,22 +76,22 @@ class MDParser:
         return '>'*level + f' {md_paragraph(string)}'
 
     @staticmethod
-    def codeblock(string:str, syntax:str, override=False) -> str:
-        if syntax not in MDParser.code_syntaxes and not override:
+    def codeblock(string:str, syntax:str='', override=False) -> str:
+        if syntax not in MDFormatter.code_syntaxes and not override:
             syntax = ''
         return f'``` {syntax}\n{string}\n```'
 
     @staticmethod
-    def diagrams(string:str, syntax:str) -> str:
-        syntax = syntax if syntax in MDParser.codediagram_syntaxes else ''
+    def diagrams(string:str, syntax:str='') -> str:
+        syntax = syntax if syntax in MDFormatter.codediagram_syntaxes else ''
         return md_codeblock(string, syntax, override=True)
 
     @staticmethod
     def styiling(string:str, style:str) -> str:
-        if style not in MDParser.styiling_formats:
+        if style not in MDFormatter.styiling_formats:
             return string
         else:
-            style = MDParser.styiling_formats[style]
+            style = MDFormatter.styiling_formats[style]
             if type(style) == list:
                 return f'{style[0]}{string}{style[1]}'
             else:
@@ -117,31 +121,35 @@ class MDParser:
         return f'[^{ref}]'
 
     @staticmethod
-    def bulletlist(lists, level:int=1, num=False, offset=0) -> str:
-        assert type(level) == int, f'{level=} not an integer'
-        assert level > 0, f'{level=}: heading level cannot be less than 0'
+    def bulletlist(items, level:int=1, num=False, offset=0) -> str:
+        # assert type(level) == int, f'{level=} not an integer'
+        # assert level > 0, f'{level=}: heading level cannot be less than 0'
+        if not level:
+            level = 1
+        if not offset:
+            offset = 0
         level -= 1
         buffer = []
-        for n, item in enumerate(lists):
+        for n, item in enumerate(items):
             n += offset 
             if type(item) == list or type(item) == tuple:
-                buffer.append(MDParser.bulletlist(item, level+2, num))
+                buffer.append(MDFormatter.bulletlist(item, level+2, num))
             else:
                 if num:
                     string = '   '*level + f'{n+1}. {item}'
                 else:
                     string = '  '*level + f'- {item}'
                 buffer.append(string)
-        return '\n'.join(buffer)
+        return '\n'.join(buffer) + '\n'
 
     @staticmethod
-    def tasks(lists, level:int=1) -> str:
+    def tasks(items, level:int=1) -> str:
         assert type(level) == int, f'{level=} not an integer'
         assert level > 0, f'{level=}: heading level cannot be less than 0'
 
-        def p(lists):
+        def p(items):
             buffer = []
-            for item in lists:
+            for item in items:
                 if type(item) == list or type(item) == tuple\
                     and type(item[0]) != bool:
                     buffer.append(p(item))
@@ -153,24 +161,24 @@ class MDParser:
                         buffer.append(f'[ ] {item}')
             return buffer
 
-        lists = p(lists)
-        return MDParser.bulletlist(lists, level=level, num=False)
+        items = p(items)
+        return MDFormatter.bulletlist(items, level=level, num=False)
 
     @staticmethod
-    def table_content(lists) -> str:
-        return '| ' + ' | '.join([str(l) for l in lists]) + ' |'
+    def table_content(items) -> str:
+        return '| ' + ' | '.join([str(l) for l in items]) + ' |'
 
     @staticmethod
-    def table_header(lists, aligns=None) -> str:
+    def table_header(items, aligns=None) -> str:
         if type(aligns) == list or type(aligns) == tuple:
-            if len(aligns) < len(lists):
-                aligns += [None]*(len(lists) - len(aligns))
+            if len(aligns) < len(items):
+                aligns += [None]*(len(items) - len(aligns))
         else:
-            aligns = [None] * len(lists)
+            aligns = [None] * len(items)
         aligns = [a.lower()[0] if type(a) == str else '' for a in aligns]
         offset = 0
         for n, align in enumerate(aligns):
-            l = len(lists[n])
+            l = len(items[n])
             if l < 3: 
                 l = 3
 
@@ -184,12 +192,55 @@ class MDParser:
                 aligns[n] = '-' * l
 
 
-        heads = md_table_content(lists)
+        heads = md_table_content(items)
         aligns = md_table_content(aligns)
         return f'{heads}\n{aligns}'
 
+    @staticmethod
+    def escape_tag_form_html_string(string, tags=['b', 'i', 'sup', 'sub']):
+        tags = '|'.join(tags)
+        pattern = fr"(<(?P<dl>({tags}))>)(.+)(<\/(?P=dl)>)"
+        regexp = re.compile(pattern)
+        def e(string):
+            matches = regexp.finditer(string)
+            for match in matches:
+                start = match.start()
+                end = match.end()
+                tag = match.groups()[0] # full tag string
+                tag_len = len(tag)
+                string_interp = [
+                    (None, string[:start]),
+                    (tag[1:-1], string[start + tag_len : end - tag_len - 1]),
+                    (None, string[end:])
+                ]
+                string_interp = [i for i in string_interp if i[1]]
+                # recurse if string still contains tag
+                string_interp = [(i[0], e(i[1])) if regexp.search(i[1]) else i for i in string_interp] 
+                return string_interp
+            else:
+                return (None, string)
+        return e(string)
 
 if __name__ == '__main__':
-    # todo: argparse, helper
-    parser = MDParser()
-    pass
+    # TODO: argparse, helper
+    parser = MDFormatter()
+    
+    string = parser.escape_tag_form_html_string('<b><i>foobar<sup>baz</sup></i></b>')
+
+
+    def recurse(pairs):
+        rettemp = ''
+        for i in pairs:
+            style = i[0]
+            value = i[1]
+            # print(f'{f} {d}')
+            if type(value) == list or type(value) == tuple:
+                temp = recurse(value)
+                rettemp += f'{style}_{temp}'
+            else:
+                rettemp += f'{style}_{value}'
+        return rettemp
+
+
+    res = recurse(string)
+    print(res)

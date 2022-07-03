@@ -1,195 +1,208 @@
-import MDParser
+from Token import Token, TokenTracer
+from PyMarkdownFormatter import MDFormatter
+import re
 
 class Py2MD:
-    class __TokenContainer:
-        __ids = []
-        __tokens = []
-        __names = []
 
-        def getById(self, ident):
-            index = self.__ids.index(ident)
-            return self.__tokens[index]
+    MDFormatter = MDFormatter()
 
-        def append_to_container(self, ident, token, name=''):
-            self.__ids.append(ident)
-            self.__tokens.append(token)
-            self.__names.append(name)
+    __T_TAG = TokenTracer()
+    __T_STYLE = TokenTracer()
+    __T_FLAGS = TokenTracer()
 
-        def get_token_ids(self):
-            return self.__ids.copy()
+    __TERMINATOR     = Token(__T_FLAGS, '</>',   'Terminator', True,  None,  False)
+    __STYLE     = Token(__T_FLAGS, '<s>',   'ParseStyling', True,  None,  False)
 
-        def get_token_names(self):
-            return self.__names.copy()
+    #           Token(Tracer, id, name, isinline, fn, accepts_param, param_type, param_len)
+    __PARAGRAPH     = Token(__T_TAG, 'p',   'Paragraph',  True,  MDFormatter.paragraph, False, None, 0)
+    __HEADING       = Token(__T_TAG, 'h',   'Heading',    False, MDFormatter.heading,   True, int)
+    __QUOTE         = Token(__T_TAG, 'q',   'Quote',      False, MDFormatter.quote,     True, int)
+    __CODE          = Token(__T_TAG, 'c',   'CodeBlock',  False, MDFormatter.codeblock, True, str)
+    __FOOTNOTES     = Token(__T_TAG, 'fn',  'Footnotes',  True,  MDFormatter.footnote,  True, bool)
+    __URL           = Token(__T_TAG, 'url', 'URL',        False, MDFormatter.links,     True, bool)
+    __BULLETLIST    = Token(__T_TAG, 'bl',   'BulletList', True, MDFormatter.bulletlist,True, (int, bool, int), 3)
+    __BREAKLINE     = Token(__T_TAG, 'b',   'Breakline',  False, lambda: '\n',         False, None, 0)
+    __ENDLINE       = Token(__T_TAG, 'end', 'Endline',    False, MDFormatter.newline,   True, int)
+    __LITERAL       = Token(__T_TAG, 'lit', 'Literal',    False, lambda x: x,           True, None, 0)
+    # __BULLETLIST    = Token(__T_TAG, 'l',   'List Items', True,  lambda : MDFormatter.bulletlist,          False)
 
-    class __Token(__TokenContainer):
-        def __init__(self, ident, name, isinline=False):
-            self.id = ident
-            self.name = name
-            self.append_to_container(ident, self, name)
-            self.isinline = isinline
-            self.params = []
+    __S_ITALIC      = Token(__T_STYLE, 'i', 'Italic',        True, lambda x: MDFormatter.styiling(x, 'i'), False)
+    __S_BOLD        = Token(__T_STYLE, 'b', 'Bold',          True, lambda x: MDFormatter.styiling(x, 'b'), False)
+    __S_ITALICBOLD  = Token(__T_STYLE, 'bi', 'Italic-Bold',  True, lambda x: MDFormatter.styiling(x, 'bi'), False)
+    __S_STRIKETH    = Token(__T_STYLE, 'st', 'Strikethrough',True, lambda x: MDFormatter.styiling(x, 'st'), False)
+    __S_SUPER       = Token(__T_STYLE, 'sup', 'Superscript', True, lambda x: MDFormatter.styiling(x, 'sup'), False)
+    __S_SUB         = Token(__T_STYLE, 'sub', 'Subscript',   True, lambda x: MDFormatter.styiling(x, 'sub'), False)
 
-        def __repr__(self):
-            return f'<t::{self.name}>'
+    __HEADING.opt_param(True, int)
 
-        def __eq__(self, o):
-            return self.id == o
 
-    __T_PARAGRAPH  = __Token('p', 'paragraph', True)
-    __T_HEADINGS   = __Token('h', 'heading')
-    __T_LISTS      = __Token('l', 'list', True)
-    __T_TASKS      = __Token('ts', 'task', True)
-    __T_TABLE      = __Token('t', 'table')
-    __T_CODEBLOCK  = __Token('cb', 'codeblock')
-    __T_FOOTNOTE   = __Token('fn', 'footnote', True)
-    __T_URL        = __Token('url', 'url', True)
-    __T_DEFINITION = __Token('d', 'definition')
-    __T_HRULE      = __Token('hr', 'horizontal_rule')
-    __T_BREAK      = __Token('b', 'break')
-    __T_STYLING    = __Token('s', 'inlinestyling', True)
-    __T_END        = __Token('end', 'eod', True)
-
-    __TOKEN_CONTAINER = __TokenContainer()
-
-    def __init__(self, newlines=2):
-        if newlines <= 1:
-            newlines = 2
-        else:
-            newlines = int(newlines) 
+    def __init__(self, newlines:int=2):
         self.newlines = newlines
-        self.stream = []
-        self.tags = self.__TOKEN_CONTAINER.get_token_ids()
-        self.tag_names = self.__TOKEN_CONTAINER.get_token_names()
-        self.tags_dict = dict(zip(self.tags, self.tag_names))
-        self.getByID = self.__TOKEN_CONTAINER.getById
-        self.parser = MDParser.MDParser()
 
-    def add(self, tag:str, value:str=''):
-        tagid = tag.rstrip('0123456879')
-        param = tag[len(tagid):]
-        param = param if param else None
-        value = value if value else None
-        if tagid not in self.tags:
-            raise ValueError(f'tag \'{tagid}\' is not valid.')
+        self.tags = self.__T_TAG.getIds()
+        self.tag_names = self.__T_TAG.getNames()
+        self.tag_dict = dict(zip(self.tags, self.tag_names))
+
+        self.styles = self.__T_STYLE.getIds()
+        self.style_names = self.__T_STYLE.getNames()
+        self.style_dict = dict(zip(self.styles, self.style_names))
+
+        self.__getTagById = self.__T_TAG.getById
+        self.__getStyleById = self.__T_STYLE.getById
+        self.__stream = []
+        self.__previous_tag = None
+
+    
+    def peekstream(self):
+        streamlen = len(self.__stream)
+        print(self.__stream)
+        print('stream size   : ', self.__stream.__sizeof__())
+        print('stream length : ', streamlen, 'items')
+
+    def __add_tostream(self, tagstr, param, value):
+        if param and type(param) != list or type(param) != tuple:
+            param = [param]
+        if tagstr.endswith('s'):
+            tagstr = tagstr[:-1]
+            param = [self.__STYLE, *param]
+        elif tagstr not in self.tags:
+            tagstr = 'p'
+
+        tag = self.__getTagById(tagstr)
+
+        if self.__previous_tag and self.__previous_tag == tag and self.__previous_tag.isinline and tag.isinline:
+            self.__stream.pop()
         else:
-            tag_token = self.getByID(tagid)
-            tag_token.params.append(param)
-            self.stream.append(tag_token)
-            self.stream.append(value)
+            self.__stream.append(tag)
+        self.__stream.append(param)
+        self.__stream.append(value)
+        self.__stream.append(self.__TERMINATOR)
+        self.__previous_tag = tag
+
+    # no @overload decorator? :(
+    def add(self, *args):
+        if not args:
+            raise ValueError('???')
+        if len(args) == 1:
+            self.__add_tostream('p', None, args[0])
+        elif len(args) == 2:
+            self.__add_tostream(args[0], None, args[1])
+        else:
+            for arg in args[2:]:
+                self.__add_tostream(args[0], args[1], arg)
         return self
 
-    def addlist(self, tag:str, values:list):
-        for item in values:
-            self.add(tag, item)
+    def b(self):
+        self.__add_tostream('lit', None, '')
         return self
 
-    def parse(self) -> str:
-        self.add('end')
-        strbuff = []
-        tempbuff = []
-        param = None
-        past_token = None
-        while self.stream:
-            value = self.stream.pop(0)
-            if isinstance(value, self.__Token):
-                param = value.params.pop(0)
-                if past_token == value and value.isinline:
-                    print(value)
-                else:
-                    past_token = value
-                    if tempbuff:
-                        strbuff.append(self.__flush(tempbuff))
-                    tempbuff.clear()
-                    tempbuff.append((value, param))
+    def __parse_styling(self, string):
+        style_pairs = self.MDFormatter.escape_tag_form_html_string(string)
+        def esc(pairs):
+            strbuff = ''
+            for items in pairs:
+                style = items[0]
+                value = items[1]
+                fn = lambda x: x
+                print(style, items)
+                if not value:
+                    value = ''
+                if type(value) == list or type(value) == tuple:
+                    value = esc(value)
+                if style in self.styles:
+                    fn = self.__getStyleById(style).fn
+                strbuff += fn(value)
+            return strbuff
+        return esc(style_pairs)
+        # return reccc(style_pairs)
+        # return 'AAAA'
+
+    def __parse_byToken(self, token, param, value):
+        token_fn_arg_len = token.param_len
+        fn = token.fn
+
+        if len(param) < token_fn_arg_len:
+            param = param + [None]*(token_fn_arg_len-len(param))
+        if token in [self.__BREAKLINE]:
+            return ''
+        if token_fn_arg_len == 0:
+            value = fn(value)
+        elif token_fn_arg_len == 1:
+            value = fn(value, param[0])
+        elif token_fn_arg_len == 2:
+            value = fn(value, param[0], param[1])
+        elif token_fn_arg_len == 3:
+            value = fn(value, param[0], param[1], param[2])
+        else:
+            raise ValueError()
+        return value
+
+    def parse(self):
+        strout = ''
+        previous_token = None
+        while self.__stream:
+            token = self.__stream.pop(0)
+            if token == self.__TERMINATOR:
+                if previous_token != self.__LITERAL:
+                    strout += self.__ENDLINE.fn(self.newlines)
             else:
-                tempbuff.append(value)
-        return ('\n'*self.newlines).join(i for i in strbuff if i)
-
-    def __flush(self, block):
-        token, param = block.pop(0)
-        values = block
-        string = ''
-        if not isinstance(token, self.__Token):
-            raise RuntimeError('Something went wrong on parsing data block')
-        for value in values:
-            if token == self.__T_END:
-                pass
-            
-            elif token == self.__T_PARAGRAPH:
-                string += self.parser.paragraph(value)
-                string += ' '
-            
-            elif token == self.__T_HEADINGS: 
-                param = int(param) if param else 1
-                string += self.parser.heading(value, param)
-            
-            elif token == self.__T_LISTS:
-                param = True if param else False
-                string += self.parser.bulletlist([value], num=param)
-                string += '\n'
-            
-            elif token == self.__T_TASKS: 
-                string += self.parser.tasks([value])
-                string += '\n'
-            
-            elif token == self.__T_TABLE:
-                if param:
-                    string += self.parser.table_header(value)
-                else:
-                    string += self.parser.table_content(value)
-            
-            elif token == self.__T_CODEBLOCK: 
-                syntax = None
-                if type(value) == list or type(value) == tuple:
-                    syntax = value[0]
-                    value = value[1]
-                else:
-                    syntax = None
-                string += self.parser.codeblock(value, syntax)
-            
-            elif token == self.__T_FOOTNOTE: 
-                desc = ''
-                if type(value) == list or type(value) == tuple:
-                    desc = value[1]
-                    value = value[0]
-                else:
-                    desc = ''
-                string += self.parser.footnote(value, desc)
-            
-            elif token == self.__T_URL: 
-                desc = ''
-                if type(value) == list or type(value) == tuple:
-                    desc = value[1]
-                    value = value[0]
-                else:
-                    desc = ''
-                string += self.parser.links(value, desc)
-            
-            elif token == self.__T_DEFINITION: pass
-            
-            elif token == self.__T_HRULE: 
-                string += '---'
-            
-            elif token == self.__T_BREAK: 
-                string += ''
-            
-            elif token == self.__T_STYLING: 
-                style = ''
-                if type(value) == list or type(value) == tuple:
-                    style = value[0]
-                    value = value[1]
-                else:
-                    style = 'i'
-                string += self.parser.styiling(value, style)
-
-        return string.rstrip('\n')
+                while True:
+                    if self.__stream[0] == self.__TERMINATOR:
+                        break
+                    do_parse_style = False
+                    strtemp = ''
+                    param = self.__stream.pop(0)
+                    value = self.__stream.pop(0)
+                    if param[0] == self.__STYLE:
+                        do_parse_style = True
+                        param.pop(0)
+                    # print(f'{token=}, {param=}, {value=}')
+                    strtemp = self.__parse_byToken(token, param, value)
+                    if do_parse_style:
+                        strtemp = self.__parse_styling(strtemp)
+                    strout += strtemp
+            previous_token = token
+        return strout
 
 if __name__ == '__main__':
     mdparser = Py2MD()
-    mdparser.add('h', 'Py2MD')
-    mdparser.add('p', 'Python internal markdown parser.')
-    mdparser.add('p', 'impractical, heavy, pointless, but its')
-    mdparser.add('s', ('i', 'kinda'))
-    mdparser.add('p', 'wokrs.')
-    with open('README.md', 'w') as fp:
-        fp.write(mdparser.parse())
+    mdparser.newlines = 2
+    mdparser.add('h','Heading lv 1')
+    mdparser.add('h', 2, 'Heading lv 2')
+    mdparser.add('h', 3, 'Heading lv 3')
+    mdparser.add('h', 4, 'Heading lv 4')
+    mdparser.add('h', 5, 'Heading lv 5')
+
+    mdparser.add('Paragraph.')
+    mdparser.add('p','another')
+    mdparser.add('p','paragraph')
+    mdparser.add('p','will')
+    mdparser.add('p','converted')
+    mdparser.add('p','into')
+    mdparser.add('p','one')
+    mdparser.add('p','line')
+    mdparser.b()
+    mdparser.add('p',1 ,'except if you add breakline between them')
+    mdparser.b()
+    mdparser.add('p','bland paragraph,')
+    mdparser.add('bl',['bland paragraph', 'bland paragraph', 'bland paragraph'])
+    mdparser.add('bl',['bland paragraph'])
+    mdparser.b()
+    mdparser.add('bl',[2, True, 2],['bland paragraph', ['bland paragraph', 'bland paragraph']])
+
+    mdparser.add('ps','and paragraph with <i>styling</i>')
+
+    mdparser.add('hs', 2,'<b><i>Italic Bold</i></b> Foobar')
+    # mdparser.peekstream()
+    # print(mdparser.parse())
+    foo = mdparser.parse()
+
+    print(foo)
+
+
+    # print()
+    # for k,v in mdparser.tag_dict.items():
+    #     print(f'`{k}`: {v}')
+    # print()
+    # for k,v in mdparser.style_dict.items():
+    #     print(f'`{k}`: {v}')

@@ -1,4 +1,4 @@
-class TokenTracer:
+class TokenContainer:
     def __init__(self):
         self.__ids = []
         self.__names = []
@@ -20,13 +20,13 @@ class TokenTracer:
         return self.__names.copy()
 
 class Token:
-    def __init__(self, Tracer: 'TokenTracer', id: str, name: str, isinline: bool, \
+    def __init__(self, Container: 'TokenContainer', id: str, name: str, isinline: bool, \
             fn: 'Function', accepts_param=False, param_type=None, param_len=1):
-        self.__Tracer = Tracer
+        self.__Container = Container
         self.id = id
         self.name = name
         self.isinline = isinline
-        self.__Tracer.appendItem(id, name, self)
+        self.__Container.appendItem(id, name, self)
         self.fn = fn
         self.accepts_param = accepts_param
         self.param_type = param_type

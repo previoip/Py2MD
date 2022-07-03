@@ -71,9 +71,11 @@ class MDFormatter:
 
     @staticmethod
     def quote(string:str, level:int=1) -> str:
-        assert type(level) == int, f'{level=} not an integer'
-        assert level > 0, f'{level=}: level cannot be less than 0'
-        return '>'*level + f' {md_paragraph(string)}'
+        # assert type(level) == int, f'{level=} not an integer'
+        # assert level > 0, f'{level=}: level cannot be less than 0'
+        if not level:
+            level = 1
+        return '>'*level + f' {MDFormatter.paragraph(string)}\n'
 
     @staticmethod
     def codeblock(string:str, syntax:str='', override=False) -> str:
@@ -166,7 +168,7 @@ class MDFormatter:
 
     @staticmethod
     def table_content(items) -> str:
-        return '| ' + ' | '.join([str(l) for l in items]) + ' |'
+        return '| ' + ' | '.join([str(l) for l in items]) + ' |\n'
 
     @staticmethod
     def table_header(items, aligns=None) -> str:
@@ -192,9 +194,9 @@ class MDFormatter:
                 aligns[n] = '-' * l
 
 
-        heads = md_table_content(items)
-        aligns = md_table_content(aligns)
-        return f'{heads}\n{aligns}'
+        heads = MDFormatter.table_content(items)
+        aligns = MDFormatter.table_content(aligns)
+        return f'{heads}{aligns}'
 
     @staticmethod
     def escape_tag_form_html_string(string, tags=['b', 'i', 'sup', 'sub']):

@@ -1,4 +1,4 @@
-from Token import Token, TokenTracer
+from Token import Token, TokenContainer
 from PyMarkdownFormatter import MDFormatter
 import re
 
@@ -6,21 +6,23 @@ class Py2MD:
 
     MDFormatter = MDFormatter()
 
-    __T_TAG = TokenTracer()
-    __T_STYLE = TokenTracer()
-    __T_FLAGS = TokenTracer()
+    __T_TAG = TokenContainer()
+    __T_STYLE = TokenContainer()
+    __T_FLAGS = TokenContainer()
 
     __TERMINATOR     = Token(__T_FLAGS, '</>',   'Terminator', True,  None,  False)
     __STYLE     = Token(__T_FLAGS, '<s>',   'ParseStyling', True,  None,  False)
 
-    #           Token(Tracer, id, name, isinline, fn, accepts_param, param_type, param_len)
+    #           Token(Container, id, name, isinline, fn, accepts_param, param_type, param_len)
     __PARAGRAPH     = Token(__T_TAG, 'p',   'Paragraph',  True,  MDFormatter.paragraph, False, None, 0)
     __HEADING       = Token(__T_TAG, 'h',   'Heading',    False, MDFormatter.heading,   True, int)
-    __QUOTE         = Token(__T_TAG, 'q',   'Quote',      False, MDFormatter.quote,     True, int)
+    __QUOTE         = Token(__T_TAG, 'q',   'Quote',      True, MDFormatter.quote,     True, int)
     __CODE          = Token(__T_TAG, 'c',   'CodeBlock',  False, MDFormatter.codeblock, True, str)
     __FOOTNOTES     = Token(__T_TAG, 'fn',  'Footnotes',  True,  MDFormatter.footnote,  True, bool)
     __URL           = Token(__T_TAG, 'url', 'URL',        False, MDFormatter.links,     True, bool)
-    __BULLETLIST    = Token(__T_TAG, 'bl',   'BulletList', True, MDFormatter.bulletlist,True, (int, bool, int), 3)
+    __BULLETLIST    = Token(__T_TAG, 'li',  'BulletList', True,  MDFormatter.bulletlist,True, (int, bool, int), 3)
+    __TABULAR       = Token(__T_TAG, 't',   'Tabular',    True,  MDFormatter.table_content, False, None, 0)
+    __TABULARHEAD   = Token(__T_TAG, 'th',  'TabularHeader',True,  MDFormatter.table_header, False, None, 0)
     __BREAKLINE     = Token(__T_TAG, 'b',   'Breakline',  False, lambda: '\n',         False, None, 0)
     __ENDLINE       = Token(__T_TAG, 'end', 'Endline',    False, MDFormatter.newline,   True, int)
     __LITERAL       = Token(__T_TAG, 'lit', 'Literal',    False, lambda x: x,           True, None, 0)
@@ -28,12 +30,12 @@ class Py2MD:
 
     __S_ITALIC      = Token(__T_STYLE, 'i', 'Italic',        True, lambda x: MDFormatter.styiling(x, 'i'), False)
     __S_BOLD        = Token(__T_STYLE, 'b', 'Bold',          True, lambda x: MDFormatter.styiling(x, 'b'), False)
-    __S_ITALICBOLD  = Token(__T_STYLE, 'bi', 'Italic-Bold',  True, lambda x: MDFormatter.styiling(x, 'bi'), False)
+    # __S_ITALICBOLD  = Token(__T_STYLE, 'bi', 'Italic-Bold',  True, lambda x: MDFormatter.styiling(x, 'bi'), False)
     __S_STRIKETH    = Token(__T_STYLE, 'st', 'Strikethrough',True, lambda x: MDFormatter.styiling(x, 'st'), False)
     __S_SUPER       = Token(__T_STYLE, 'sup', 'Superscript', True, lambda x: MDFormatter.styiling(x, 'sup'), False)
     __S_SUB         = Token(__T_STYLE, 'sub', 'Subscript',   True, lambda x: MDFormatter.styiling(x, 'sub'), False)
 
-    __HEADING.opt_param(True, int)
+    # __HEADING.opt_param(True, int)
 
 
     def __init__(self, newlines:int=2):
@@ -60,8 +62,13 @@ class Py2MD:
         print('stream length : ', streamlen, 'items')
 
     def __add_tostream(self, tagstr, param, value):
-        if param and type(param) != list or type(param) != tuple:
+        if param and (type(param) != list and type(param) != tuple):
             param = [param]
+        # elif param and (type(param) == list or type(param) == tuple):
+        #     print(type(param), param)
+        else:
+            param = [None]
+
         if tagstr.endswith('s'):
             tagstr = tagstr[:-1]
             param = [self.__STYLE, *param]
@@ -104,7 +111,7 @@ class Py2MD:
                 style = items[0]
                 value = items[1]
                 fn = lambda x: x
-                print(style, items)
+                # print(style, items)
                 if not value:
                     value = ''
                 if type(value) == list or type(value) == tuple:
@@ -143,7 +150,7 @@ class Py2MD:
         while self.__stream:
             token = self.__stream.pop(0)
             if token == self.__TERMINATOR:
-                if previous_token != self.__LITERAL:
+                if previous_token != self.__LITERAL and previous_token != self.__TABULARHEAD :
                     strout += self.__ENDLINE.fn(self.newlines)
             else:
                 while True:
@@ -164,9 +171,26 @@ class Py2MD:
             previous_token = token
         return strout
 
+
+####### ---------------------------------------------
 if __name__ == '__main__':
     mdparser = Py2MD()
     mdparser.newlines = 2
+    mdparser.add('h','Py2MD')
+
+    mdparser.add('h', 2, 'Tag Reference')
+    mdparser.add('th', ['Tag', 'Desc'])
+    for k,v in mdparser.tag_dict.items():
+        mdparser.add('t', [f'`{k}`', v])
+
+    mdparser.add('th', ['Style', 'Desc'])
+    for k,v in mdparser.style_dict.items():
+        mdparser.add('t', [f'`{k}`', v])
+
+
+
+    ### ---------------------------------------------
+    mdparser.add('---')
     mdparser.add('h','Heading lv 1')
     mdparser.add('h', 2, 'Heading lv 2')
     mdparser.add('h', 3, 'Heading lv 3')
@@ -174,35 +198,31 @@ if __name__ == '__main__':
     mdparser.add('h', 5, 'Heading lv 5')
 
     mdparser.add('Paragraph.')
+    mdparser.add('p','adding')
     mdparser.add('p','another')
     mdparser.add('p','paragraph')
     mdparser.add('p','will')
-    mdparser.add('p','converted')
+    mdparser.add('p','concatenated')
     mdparser.add('p','into')
     mdparser.add('p','one')
-    mdparser.add('p','line')
+    mdparser.add('p','line.')
     mdparser.b()
-    mdparser.add('p',1 ,'except if you add breakline between them')
-    mdparser.b()
-    mdparser.add('p','bland paragraph,')
-    mdparser.add('bl',['bland paragraph', 'bland paragraph', 'bland paragraph'])
-    mdparser.add('bl',['bland paragraph'])
-    mdparser.b()
-    mdparser.add('bl',[2, True, 2],['bland paragraph', ['bland paragraph', 'bland paragraph']])
+    mdparser.add('p','except if breakline is added between addition.')
 
-    mdparser.add('ps','and paragraph with <i>styling</i>')
+    mdparser.add('li',['list item', 'uses iterator', 'as value', ['nested list', 'will be parsed', ['as multilevel list']], 'back to level 1'])
 
-    mdparser.add('hs', 2,'<b><i>Italic Bold</i></b> Foobar')
+    mdparser.add('ps','adding `s` suffix on tag arg will reformat <i>styling</i> into markdown format.')
+    mdparser.add('q', '<b><i>Italic Bold</i></b> << although normally html inline formatting wtill works just fine.')
+    mdparser.add('q', 2, 'also multilevel Quote Block')
+    mdparser.add('q', 10, 'Sandwiches at cheap price !? !?.')
+    mdparser.add('q', 11, 'satisfactory.')
+    mdparser.add('th', ['Id', 'This will','parse as Table'])
+    for i in range(5):
+        mdparser.add('t', [i, f'Value_{i}', f'Another one {i}'])
+    
+    
     # mdparser.peekstream()
-    # print(mdparser.parse())
-    foo = mdparser.parse()
+    mdstr = mdparser.parse()
 
-    print(foo)
-
-
-    # print()
-    # for k,v in mdparser.tag_dict.items():
-    #     print(f'`{k}`: {v}')
-    # print()
-    # for k,v in mdparser.style_dict.items():
-    #     print(f'`{k}`: {v}')
+    with open('README.md',  'w') as fp:
+        fp.write(mdstr)

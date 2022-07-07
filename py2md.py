@@ -49,8 +49,8 @@ class Py2MD:
         self.style_names = self.__T_STYLE.getNames()
         self.style_dict = dict(zip(self.styles, self.style_names))
 
-        self.__getTagById = self.__T_TAG.getById
-        self.__getStyleById = self.__T_STYLE.getById
+        self.getTagById = self.__T_TAG.getById
+        self.getStyleById = self.__T_STYLE.getById
         self.__stream = []
         self.__previous_tag = None
 
@@ -75,7 +75,7 @@ class Py2MD:
         elif tagstr not in self.tags:
             tagstr = 'p'
 
-        tag = self.__getTagById(tagstr)
+        tag = self.getTagById(tagstr)
 
         if self.__previous_tag and self.__previous_tag == tag and self.__previous_tag.isinline and tag.isinline:
             self.__stream.pop()
@@ -117,7 +117,7 @@ class Py2MD:
                 if type(value) == list or type(value) == tuple:
                     value = esc(value)
                 if style in self.styles:
-                    fn = self.__getStyleById(style).fn
+                    fn = self.getStyleById(style).fn
                 strbuff += fn(value)
             return strbuff
         return esc(style_pairs)
@@ -179,9 +179,12 @@ if __name__ == '__main__':
     mdparser.add('h','Py2MD')
 
     mdparser.add('h', 2, 'Tag Reference')
-    mdparser.add('th', ['Tag', 'Desc'])
+    mdparser.add('th', ['Tag', 'Desc', 'Inline', 'Param'])
     for k,v in mdparser.tag_dict.items():
-        mdparser.add('t', [f'`{k}`', v])
+        tag = mdparser.getTagById(k)
+        isinline = str(tag.isinline)
+        paramtype = str(tag.param_type)
+        mdparser.add('t', [f'`{k}`', v, isinline, paramtype])
 
     mdparser.add('th', ['Style', 'Desc'])
     for k,v in mdparser.style_dict.items():
@@ -212,10 +215,11 @@ if __name__ == '__main__':
     mdparser.add('li',['list item', 'uses iterator', 'as value', ['nested list', 'will be parsed', ['as multilevel list']], 'back to level 1'])
 
     mdparser.add('ps','adding `s` suffix on tag arg will reformat <i>styling</i> into markdown format.')
-    mdparser.add('q', '<b><i>Italic Bold</i></b> << although normally html inline formatting wtill works just fine.')
-    mdparser.add('q', 2, 'also multilevel Quote Block')
-    mdparser.add('q', 10, 'Sandwiches at cheap price !? !?.')
-    mdparser.add('q', 11, 'satisfactory.')
+    mdparser.b()
+    mdparser.add('p', '<b><i>Italic Bold</i></b> << although normally html inline formatting wtill works just fine.')
+    mdparser.add('q', 'also multilevel Quote Block')
+    mdparser.add('q', 2, 'Sandwiches at cheap price !? !?.')
+    mdparser.add('q', 3, 'satisfactory.')
     mdparser.add('th', ['Id', 'This will','parse as Table'])
     for i in range(5):
         mdparser.add('t', [i, f'Value_{i}', f'Another one {i}'])

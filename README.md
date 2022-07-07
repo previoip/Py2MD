@@ -2,20 +2,20 @@
 
 ## Tag Reference
 
-| Tag | Desc |
-| --- | ---- |
-| `p` | Paragraph |
-| `h` | Heading |
-| `q` | Quote |
-| `c` | CodeBlock |
-| `fn` | Footnotes |
-| `url` | URL |
-| `li` | BulletList |
-| `t` | Tabular |
-| `th` | TabularHeader |
-| `b` | Breakline |
-| `end` | Endline |
-| `lit` | Literal |
+| Tag | Desc | Inline | Param |
+| --- | ---- | ------ | ----- |
+| `p` | Paragraph | True | None |
+| `h` | Heading | False | <class 'int'> |
+| `q` | Quote | True | <class 'int'> |
+| `c` | CodeBlock | False | <class 'str'> |
+| `fn` | Footnotes | True | <class 'bool'> |
+| `url` | URL | False | <class 'bool'> |
+| `li` | BulletList | True | (<class 'int'>, <class 'bool'>, <class 'int'>) |
+| `t` | Tabular | True | None |
+| `th` | TabularHeader | True | None |
+| `b` | Breakline | False | None |
+| `end` | Endline | False | <class 'int'> |
+| `lit` | Literal | False | None |
 
 
 | Style | Desc |
@@ -56,14 +56,15 @@ except if breakline is added between addition.
 
 adding `s` suffix on tag arg will reformat *styling* into markdown format. 
 
-> <b><i>Italic Bold</i></b> << although normally html inline formatting wtill works just fine. 
->> also multilevel Quote Block 
->>>>>>>>>> Sandwiches at cheap price !? !?. 
->>>>>>>>>>> satisfactory. 
+<b><i>Italic Bold</i></b> << although normally html inline formatting wtill works just fine. 
+
+> also multilevel Quote Block 
+>> Sandwiches at cheap price !? !?. 
+>>> satisfactory. 
 
 
-| Index | This will | parse as Table |
-| ----- | --------- | -------------- |
+| Id | This will | parse as Table |
+| --- | --------- | -------------- |
 | 0 | Value_0 | Another one 0 |
 | 1 | Value_1 | Another one 1 |
 | 2 | Value_2 | Another one 2 |
